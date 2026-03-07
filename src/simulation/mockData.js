@@ -166,3 +166,124 @@ export const INCIDENTS = [
     { id: 'INC-002', userId: 'EM-551', user: 'Vikram Joshi', type: 'Off-hours Sector Access', severity: 'High', status: 'Under Review', time: '11:42 PM', riskScore: 74, detail: 'Accessed Treasury system at 11:42 PM from public IP 103.21.58.14. Outside allowed window (8:00–20:00).' },
     { id: 'INC-003', userId: 'EM-102', user: 'Neha Gupta', type: 'Privilege Escalation Attempt', severity: 'Critical', status: 'Auto-Blocked', time: '11:55 AM', riskScore: 96, detail: 'Attempted to access Treasury sector from Customer DB context. Cross-sector access denied by micro-segmentation policy.' },
 ];
+
+// ==========================================
+// PHASE 5: Enhanced Action Risk Scoring
+// ==========================================
+
+// --- TREASURER ACTION RISK CALCULATOR ---
+export function calculateActionRisk(actionType, params = {}) {
+    let score = 0;
+    const factors = [];
+
+    switch (actionType) {
+        case 'loan_approval':
+            if (params.amount > 50) { score += 65; factors.push('Loan exceeds ₹50 Cr policy limit'); }
+            else if (params.amount > 20) { score += 45; factors.push('Loan between ₹20–50 Cr, elevated review'); }
+            else if (params.amount > 5) { score += 25; factors.push('Loan between ₹5–20 Cr, standard scrutiny'); }
+            else { score += 8; factors.push('Loan within auto-approve range'); }
+            if (params.isNPA) { score += 30; factors.push('Borrower has NPA history'); }
+            if (params.isNewBorrower) { score += 15; factors.push('New borrower — no credit history'); }
+            break;
+
+        case 'fund_transfer':
+            if (params.amount > 100) { score += 70; factors.push('Transfer exceeds ₹100 Cr daily limit'); }
+            else if (params.amount > 50) { score += 50; factors.push('Transfer between ₹50–100 Cr'); }
+            else if (params.amount > 10) { score += 20; factors.push('Transfer between ₹10–50 Cr'); }
+            else { score += 5; factors.push('Transfer within normal range'); }
+            if (params.isForeign) { score += 20; factors.push('International wire transfer'); }
+            break;
+
+        case 'fx_trade':
+            if (params.amount > 50) { score += 60; factors.push('FX trade exceeds $50M daily limit'); }
+            else if (params.amount > 20) { score += 35; factors.push('FX trade between $20–50M'); }
+            else { score += 10; factors.push('FX trade within normal range'); }
+            if (params.isExotic) { score += 25; factors.push('Exotic currency pair'); }
+            break;
+
+        case 'bond_settlement':
+            if (params.amount > 200) { score += 55; factors.push('Settlement exceeds ₹200 Cr'); }
+            else if (params.amount > 50) { score += 30; factors.push('Settlement between ₹50–200 Cr'); }
+            else { score += 8; factors.push('Settlement within normal range'); }
+            if (params.isOffMarket) { score += 35; factors.push('Off-market pricing detected'); }
+            break;
+
+        case 'data_export':
+            if (params.records > 10000) { score += 92; factors.push('Bulk export exceeds 10,000 records — critical'); }
+            else if (params.records > 5000) { score += 65; factors.push('Export exceeds 5,000 record policy'); }
+            else if (params.records > 1000) { score += 30; factors.push('Large export: 1,000–5,000 records'); }
+            else { score += 5; factors.push('Export within normal range'); }
+            break;
+
+        case 'account_modification':
+            if (params.isDormant) { score += 75; factors.push('Modifying dormant/frozen account'); }
+            else if (params.isVIP) { score += 55; factors.push('VIP account — elevated oversight'); }
+            else { score += 12; factors.push('Standard account modification'); }
+            if (params.limitsChanged) { score += 25; factors.push('Transaction limits modified'); }
+            break;
+
+        default:
+            score = 10;
+            factors.push('Standard operation');
+    }
+
+    // Context amplifiers
+    const hour = CURRENT_SESSION.time;
+    if (hour < 8 || hour >= 20) { score += 15; factors.push('Off-hours activity'); }
+    if (CURRENT_SESSION.ip !== '192.168.1.100') { score += 10; factors.push('Non-corporate IP'); }
+
+    score = Math.min(score, 100);
+    const enforcement = getActionEnforcement(score);
+
+    return { score, factors, enforcement };
+}
+
+// --- ACTION ENFORCEMENT TIERS (user's spec) ---
+export function getActionEnforcement(score) {
+    if (score <= 40) return {
+        tier: 'approve', label: 'Auto-Approved', icon: '✅',
+        color: '#10b981', bgColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)',
+        description: 'Action approved and logged. No additional verification required.',
+    };
+    if (score <= 70) return {
+        tier: 'zta', label: 'ZTA Verification Required', icon: '🔐',
+        color: '#f59e0b', bgColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)',
+        description: 'Elevated risk detected. Complete Zero Trust verification to proceed.',
+    };
+    if (score <= 90) return {
+        tier: 'restrict', label: 'Access Restricted', icon: '⚠️',
+        color: '#f97316', bgColor: 'rgba(249,115,22,0.1)', borderColor: 'rgba(249,115,22,0.2)',
+        description: 'Access restricted to view-only mode. Admin has been notified by email. Admin must re-enable full access.',
+    };
+    return {
+        tier: 'block', label: 'BLOCKED — 30 Min Lockout', icon: '🚫',
+        color: '#ef4444', bgColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)',
+        description: 'All access blocked for 30 minutes. Admin notified for manual review. Only Admin can restore access.',
+    };
+}
+
+// --- PENDING LOAN QUEUE ---
+export const PENDING_LOANS = [
+    { id: 'LN-40012', borrower: 'Reliance Industries Ltd', amount: 85, sector: 'Infrastructure', rating: 'AAA', tenure: '7 yrs', isNPA: false, isNewBorrower: false },
+    { id: 'LN-40015', borrower: 'Vikram Textiles Pvt Ltd', amount: 12, sector: 'MSME', rating: 'BB+', tenure: '3 yrs', isNPA: false, isNewBorrower: true },
+    { id: 'LN-40018', borrower: 'Sunrise Developers', amount: 45, sector: 'Real Estate', rating: 'BBB', tenure: '5 yrs', isNPA: true, isNewBorrower: false },
+    { id: 'LN-40021', borrower: 'TCS Ltd', amount: 3, sector: 'Technology', rating: 'AAA', tenure: '2 yrs', isNPA: false, isNewBorrower: false },
+    { id: 'LN-40024', borrower: 'Metro Infra Projects', amount: 120, sector: 'Infrastructure', rating: 'A-', tenure: '10 yrs', isNPA: false, isNewBorrower: true },
+];
+
+// --- ZTA 6-STEP ENGINE (activated on anomaly) ---
+export const ZTA_STEPS = [
+    { id: 1, label: 'Password & Employee ID', icon: 'Lock', description: 'Corporate credentials', simValue: 'EM-204 / ••••••••' },
+    { id: 2, label: 'OTP Verification', icon: 'Smartphone', description: '6-digit code sent to registered device', simValue: '927418' },
+    { id: 3, label: 'Biometric Scan', icon: 'Fingerprint', description: 'Fingerprint or facial recognition', simValue: 'Fingerprint matched' },
+    { id: 4, label: 'Security Question', icon: 'HelpCircle', description: 'Personal verification', simValue: 'What city were you born in?' },
+    { id: 5, label: 'Manager Auth Code', icon: 'UserCheck', description: 'Real-time manager approval', simValue: 'MGR-CODE-8847' },
+    { id: 6, label: 'Hardware Token', icon: 'Key', description: 'YubiKey or RSA SecurID', simValue: 'TOKEN-4488-XR' },
+];
+
+// --- SECURITY QUESTIONS ---
+export const SECURITY_QUESTIONS = [
+    'What city were you born in?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first pet?',
+];
