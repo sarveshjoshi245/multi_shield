@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, TrendingDown, Briefcase, Activity, Wallet, Globe, ArrowUpRight, FileText, Send, RefreshCcw, Database, UserCog, CheckCircle2, AlertTriangle, Shield } from 'lucide-react';
+import { TrendingUp, TrendingDown, Briefcase, Activity, Wallet, Globe, ArrowUpRight, FileText, Send, RefreshCcw, Database, UserCog, AlertTriangle, Shield } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { TREASURY_TRANSACTIONS, MARKET_TICKERS, LIQUIDITY_TREND, PORTFOLIO_ALLOCATION, PENDING_LOANS, calculateActionRisk, getRiskAction } from '../../simulation/mockData';
-import RiskEnforcementModal from '../../components/RiskEnforcementModal';
+import { TREASURY_TRANSACTIONS, MARKET_TICKERS, LIQUIDITY_TREND, PORTFOLIO_ALLOCATION, PENDING_LOANS, calculateActionRisk } from '../../simulation/mockData';
+import { useSecurityContext } from '../../context/SecurityContext';
+import SecurityBlockOverlay from '../../components/SecurityBlockOverlay';
 
 const KPIs = [
     { label: 'Assets Under Management', value: '₹14,502 Cr', change: '+2.4%', up: true, icon: Briefcase },
@@ -12,27 +13,32 @@ const KPIs = [
     { label: 'Cash & Balances (RBI)', value: '₹890 Cr', change: '+1.2%', up: true, icon: Wallet },
 ];
 
+const SYSTEM_MAP = {
+    fund_transfer: 'Transfers',
+    fx_trade: 'FX Trading',
+    bond_settlement: 'Treasury',
+    data_export: 'Data Export',
+    loan_approval: 'Treasury',
+    account_modification: 'Treasury',
+};
+
 export default function TreasurerDashboard() {
     const [activeTab, setActiveTab] = useState('overview');
-    const [riskModal, setRiskModal] = useState(null); // { riskResult, actionLabel }
     const [actionLogs, setActionLogs] = useState([]);
-    const [restricted, setRestricted] = useState(false);
-    const [blocked, setBlocked] = useState(false);
+    const { triggerSecurityReview } = useSecurityContext();
 
-    // Action handlers
+    // Action handlers — risk is computed silently, no score shown to user
     const executeAction = (actionType, params, label) => {
-        if (blocked || restricted) {
-            setRiskModal({
-                riskResult: calculateActionRisk('account_modification', { isDormant: true, limitsChanged: true }),
-                actionLabel: 'Access currently restricted'
-            });
-            return;
-        }
         const result = calculateActionRisk(actionType, params);
-        setRiskModal({ riskResult: result, actionLabel: label });
-        setActionLogs(prev => [{ action: label, score: result.score, tier: result.enforcement.tier, time: new Date().toLocaleTimeString(), color: result.enforcement.color }, ...prev]);
-        if (result.enforcement.tier === 'restrict') setRestricted(true);
-        if (result.enforcement.tier === 'block') setBlocked(true);
+        const system = SYSTEM_MAP[actionType] || 'Treasury';
+
+        // Log the action (no score visible)
+        setActionLogs(prev => [{ action: label, time: new Date().toLocaleTimeString(), system }, ...prev]);
+
+        // If risk is elevated, trigger the security review overlay
+        if (result.score > 40) {
+            triggerSecurityReview('Rajesh Sharma (EM-204)', label, system);
+        }
     };
 
     const tabs = [
@@ -44,37 +50,8 @@ export default function TreasurerDashboard() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in-up">
-            {/* Risk Enforcement Modal */}
-            <AnimatePresence>
-                {riskModal && (
-                    <RiskEnforcementModal
-                        riskResult={riskModal.riskResult}
-                        actionLabel={riskModal.actionLabel}
-                        onClose={() => setRiskModal(null)}
-                        onApprove={() => setRiskModal(null)}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Restriction Banner */}
-            {(restricted || blocked) && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ padding: 16, background: blocked ? 'rgba(239,68,68,0.08)' : 'rgba(249,115,22,0.08)', border: `1px solid ${blocked ? 'rgba(239,68,68,0.2)' : 'rgba(249,115,22,0.2)'}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <AlertTriangle size={20} color={blocked ? '#ef4444' : '#f97316'} />
-                        <div>
-                            <p style={{ fontSize: 13, fontWeight: 700, color: blocked ? '#ef4444' : '#f97316' }}>
-                                {blocked ? '🚫 Access Blocked — 30 Min Lockout' : '⚠️ Access Restricted — View Only'}
-                            </p>
-                            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                {blocked ? 'All actions blocked. Admin must approve re-access.' : 'Only viewing permitted. Admin has been notified to re-enable access.'}
-                            </p>
-                        </div>
-                    </div>
-                    <button onClick={() => { setRestricted(false); setBlocked(false); }} style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-                        Admin Override (Demo)
-                    </button>
-                </motion.div>
-            )}
+            {/* Security Block Overlay */}
+            <SecurityBlockOverlay />
 
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
@@ -144,7 +121,6 @@ export default function TreasurerDashboard() {
                                 </div>
                                 <div style={{ marginTop: 12 }}>
                                     {PORTFOLIO_ALLOCATION.map((item, i) => {
-                                        const total = PORTFOLIO_ALLOCATION.reduce((s, p) => s + p.value, 0);
                                         return (
                                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, padding: '3px 0', color: '#94a3b8' }}>
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: 2, background: item.color }} />{item.name}</span>
@@ -221,40 +197,33 @@ export default function TreasurerDashboard() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {PENDING_LOANS.map(loan => {
-                                            const previewRisk = calculateActionRisk('loan_approval', loan);
-                                            return (
-                                                <tr key={loan.id} style={{ background: 'rgba(255,255,255,0.02)' }}>
-                                                    <td style={{ padding: '12px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#38bdf8' }}>{loan.id}</td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <p style={{ fontSize: 13, fontWeight: 600 }}>{loan.borrower}</p>
-                                                    </td>
-                                                    <td style={{ padding: '12px', fontSize: 14, fontFamily: 'monospace', fontWeight: 700 }}>₹{loan.amount} Cr</td>
-                                                    <td style={{ padding: '12px', fontSize: 11, color: '#94a3b8' }}>{loan.sector}</td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: loan.rating.startsWith('A') ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: loan.rating.startsWith('A') ? '#10b981' : '#f59e0b' }}>{loan.rating}</span>
-                                                    </td>
-                                                    <td style={{ padding: '12px', fontSize: 11, color: '#94a3b8' }}>{loan.tenure}</td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <div style={{ display: 'flex', gap: 4 }}>
-                                                            {loan.isNPA && <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>NPA</span>}
-                                                            {loan.isNewBorrower && <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>NEW</span>}
-                                                            {!loan.isNPA && !loan.isNewBorrower && <span style={{ fontSize: 10, color: '#64748b' }}>—</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <span style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: previewRisk.enforcement.color, minWidth: 20 }}>{previewRisk.score}</span>
-                                                            <button onClick={() => executeAction('loan_approval', loan, `Approve Loan ${loan.id}: ₹${loan.amount} Cr to ${loan.borrower}`)}
-                                                                disabled={blocked}
-                                                                style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: previewRisk.enforcement.bgColor, color: previewRisk.enforcement.color, fontSize: 10, fontWeight: 700, cursor: blocked ? 'not-allowed' : 'pointer', opacity: blocked ? 0.5 : 1 }}>
-                                                                Approve
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {PENDING_LOANS.map(loan => (
+                                            <tr key={loan.id} style={{ background: 'rgba(255,255,255,0.02)' }}>
+                                                <td style={{ padding: '12px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#38bdf8' }}>{loan.id}</td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <p style={{ fontSize: 13, fontWeight: 600 }}>{loan.borrower}</p>
+                                                </td>
+                                                <td style={{ padding: '12px', fontSize: 14, fontFamily: 'monospace', fontWeight: 700 }}>₹{loan.amount} Cr</td>
+                                                <td style={{ padding: '12px', fontSize: 11, color: '#94a3b8' }}>{loan.sector}</td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: loan.rating.startsWith('A') ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: loan.rating.startsWith('A') ? '#10b981' : '#f59e0b' }}>{loan.rating}</span>
+                                                </td>
+                                                <td style={{ padding: '12px', fontSize: 11, color: '#94a3b8' }}>{loan.tenure}</td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <div style={{ display: 'flex', gap: 4 }}>
+                                                        {loan.isNPA && <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>NPA</span>}
+                                                        {loan.isNewBorrower && <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>NEW</span>}
+                                                        {!loan.isNPA && !loan.isNewBorrower && <span style={{ fontSize: 10, color: '#64748b' }}>—</span>}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <button onClick={() => executeAction('loan_approval', loan, `Approve Loan ${loan.id}: ₹${loan.amount} Cr to ${loan.borrower}`)}
+                                                        style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'rgba(14,165,233,0.1)', color: '#38bdf8', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
+                                                        Approve
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -271,7 +240,7 @@ export default function TreasurerDashboard() {
                                 <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Send size={16} color="#0ea5e9" /> Initiate Fund Transfer
                                 </h3>
-                                <TransferForm onExecute={executeAction} blocked={blocked} type="fund_transfer" label="RTGS/NEFT" />
+                                <TransferForm onExecute={executeAction} />
                             </div>
 
                             {/* FX Trade */}
@@ -279,7 +248,7 @@ export default function TreasurerDashboard() {
                                 <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Globe size={16} color="#818cf8" /> FX Trade Execution
                                 </h3>
-                                <FXTradeForm onExecute={executeAction} blocked={blocked} />
+                                <FXTradeForm onExecute={executeAction} />
                             </div>
 
                             {/* Bond Settlement */}
@@ -287,7 +256,7 @@ export default function TreasurerDashboard() {
                                 <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Briefcase size={16} color="#f59e0b" /> Bond Settlement
                                 </h3>
-                                <BondForm onExecute={executeAction} blocked={blocked} />
+                                <BondForm onExecute={executeAction} />
                             </div>
 
                             {/* Data Export */}
@@ -295,7 +264,7 @@ export default function TreasurerDashboard() {
                                 <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Database size={16} color="#10b981" /> Data Export Request
                                 </h3>
-                                <ExportForm onExecute={executeAction} blocked={blocked} />
+                                <ExportForm onExecute={executeAction} />
                             </div>
                         </div>
                     </motion.div>
@@ -315,21 +284,18 @@ export default function TreasurerDashboard() {
                                         { label: 'Export 200 Records', action: 'data_export', params: { records: 200 }, icon: Database, color: '#10b981' },
                                         { label: 'FX $60M Exotic Pair', action: 'fx_trade', params: { amount: 60, isExotic: true }, icon: Globe, color: '#ef4444' },
                                         { label: 'Bond ₹300 Cr Off-Market', action: 'bond_settlement', params: { amount: 300, isOffMarket: true }, icon: Briefcase, color: '#ef4444' },
-                                    ].map((q, i) => {
-                                        const preview = calculateActionRisk(q.action, q.params);
-                                        return (
-                                            <button key={i} onClick={() => executeAction(q.action, q.params, q.label)} disabled={blocked}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, borderRadius: 12, border: `1px solid ${preview.enforcement.borderColor}`, background: preview.enforcement.bgColor, cursor: blocked ? 'not-allowed' : 'pointer', opacity: blocked ? 0.5 : 1, textAlign: 'left', transition: 'all 0.2s' }}>
-                                                <div style={{ width: 40, height: 40, borderRadius: 10, background: `${q.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <q.icon size={18} color={q.color} />
-                                                </div>
-                                                <div>
-                                                    <p style={{ fontSize: 12, fontWeight: 600, color: 'white' }}>{q.label}</p>
-                                                    <p style={{ fontSize: 10, color: preview.enforcement.color, fontWeight: 700, marginTop: 2 }}>Score: {preview.score} — {preview.enforcement.label}</p>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
+                                    ].map((q, i) => (
+                                        <button key={i} onClick={() => executeAction(q.action, q.params, q.label)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${q.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                <q.icon size={18} color={q.color} />
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: 12, fontWeight: 600, color: 'white' }}>{q.label}</p>
+                                                <p style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Click to execute</p>
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
@@ -348,7 +314,7 @@ export default function TreasurerDashboard() {
                                                     <p style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.action}</p>
                                                     <p style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>{log.time}</p>
                                                 </div>
-                                                <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: log.color, flexShrink: 0, marginLeft: 8 }}>{log.score}</span>
+                                                <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0, marginLeft: 8 }}>{log.system}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -362,12 +328,11 @@ export default function TreasurerDashboard() {
     );
 }
 
-// --- Sub-components for transfer forms ---
+// --- Sub-components for transfer forms (no risk previews) ---
 
-function TransferForm({ onExecute, blocked }) {
+function TransferForm({ onExecute }) {
     const [amount, setAmount] = useState(25);
     const [isForeign, setIsForeign] = useState(false);
-    const preview = calculateActionRisk('fund_transfer', { amount, isForeign });
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
@@ -382,21 +347,16 @@ function TransferForm({ onExecute, blocked }) {
                 <input type="checkbox" checked={isForeign} onChange={e => setIsForeign(e.target.checked)} style={{ accentColor: '#0284c7' }} />
                 International Wire Transfer
             </label>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: preview.enforcement.bgColor, border: `1px solid ${preview.enforcement.borderColor}` }}>
-                <span style={{ fontSize: 10, color: '#94a3b8' }}>Risk Preview:</span>
-                <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: preview.enforcement.color }}>{preview.score} — {preview.enforcement.label}</span>
-            </div>
-            <button onClick={() => onExecute('fund_transfer', { amount, isForeign }, `RTGS Transfer ₹${amount} Cr${isForeign ? ' (International)' : ''}`)} disabled={blocked} className="btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: blocked ? 0.5 : 1 }}>
+            <button onClick={() => onExecute('fund_transfer', { amount, isForeign }, `RTGS Transfer ₹${amount} Cr${isForeign ? ' (International)' : ''}`)} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                 Execute Transfer
             </button>
         </div>
     );
 }
 
-function FXTradeForm({ onExecute, blocked }) {
+function FXTradeForm({ onExecute }) {
     const [amount, setAmount] = useState(15);
     const [isExotic, setIsExotic] = useState(false);
-    const preview = calculateActionRisk('fx_trade', { amount, isExotic });
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
@@ -412,21 +372,16 @@ function FXTradeForm({ onExecute, blocked }) {
                 <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Notional ($M)</label>
                 <input className="input-field" type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: preview.enforcement.bgColor, border: `1px solid ${preview.enforcement.borderColor}` }}>
-                <span style={{ fontSize: 10, color: '#94a3b8' }}>Risk Preview:</span>
-                <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: preview.enforcement.color }}>{preview.score} — {preview.enforcement.label}</span>
-            </div>
-            <button onClick={() => onExecute('fx_trade', { amount, isExotic }, `FX Trade ${isExotic ? '(Exotic)' : ''} $${amount}M`)} disabled={blocked} className="btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: blocked ? 0.5 : 1 }}>
+            <button onClick={() => onExecute('fx_trade', { amount, isExotic }, `FX Trade ${isExotic ? '(Exotic)' : ''} $${amount}M`)} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                 Execute Trade
             </button>
         </div>
     );
 }
 
-function BondForm({ onExecute, blocked }) {
+function BondForm({ onExecute }) {
     const [amount, setAmount] = useState(75);
     const [isOffMarket, setIsOffMarket] = useState(false);
-    const preview = calculateActionRisk('bond_settlement', { amount, isOffMarket });
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
@@ -441,20 +396,15 @@ function BondForm({ onExecute, blocked }) {
                 <input type="checkbox" checked={isOffMarket} onChange={e => setIsOffMarket(e.target.checked)} style={{ accentColor: '#f59e0b' }} />
                 Off-Market Pricing
             </label>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: preview.enforcement.bgColor, border: `1px solid ${preview.enforcement.borderColor}` }}>
-                <span style={{ fontSize: 10, color: '#94a3b8' }}>Risk Preview:</span>
-                <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: preview.enforcement.color }}>{preview.score} — {preview.enforcement.label}</span>
-            </div>
-            <button onClick={() => onExecute('bond_settlement', { amount, isOffMarket }, `Bond Settlement ₹${amount} Cr${isOffMarket ? ' (Off-Market)' : ''}`)} disabled={blocked} className="btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: blocked ? 0.5 : 1 }}>
+            <button onClick={() => onExecute('bond_settlement', { amount, isOffMarket }, `Bond Settlement ₹${amount} Cr${isOffMarket ? ' (Off-Market)' : ''}`)} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                 Settle Bond
             </button>
         </div>
     );
 }
 
-function ExportForm({ onExecute, blocked }) {
+function ExportForm({ onExecute }) {
     const [records, setRecords] = useState(500);
-    const preview = calculateActionRisk('data_export', { records });
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
@@ -469,11 +419,7 @@ function ExportForm({ onExecute, blocked }) {
                 <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Number of Records</label>
                 <input className="input-field" type="number" value={records} onChange={e => setRecords(Number(e.target.value))} style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: preview.enforcement.bgColor, border: `1px solid ${preview.enforcement.borderColor}` }}>
-                <span style={{ fontSize: 10, color: '#94a3b8' }}>Risk Preview:</span>
-                <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: preview.enforcement.color }}>{preview.score} — {preview.enforcement.label}</span>
-            </div>
-            <button onClick={() => onExecute('data_export', { records }, `Export ${records.toLocaleString()} records`)} disabled={blocked} className="btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: blocked ? 0.5 : 1 }}>
+            <button onClick={() => onExecute('data_export', { records }, `Export ${records.toLocaleString()} records`)} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                 Request Export
             </button>
         </div>

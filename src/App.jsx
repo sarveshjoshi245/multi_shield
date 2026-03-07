@@ -8,44 +8,47 @@ import ManagerDashboard from './pages/Manager/Dashboard';
 import AdminDashboard from './pages/Admin/Dashboard';
 import PolicyEngine from './pages/Admin/PolicyEngine';
 import AuditManagers from './pages/Admin/AuditManagers';
+import { SecurityProvider } from './context/SecurityContext';
 
 function App() {
     return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<LoginPage />} />
+        <SecurityProvider>
+            <Router>
+                <Routes>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/login" element={<LoginPage />} />
 
-                {/* Protected Routes Simulation */}
-                <Route path="/treasurer/*" element={
-                    <MainLayout role="treasurer">
-                        <Routes>
-                            <Route index element={<TreasurerDashboard />} />
-                        </Routes>
-                    </MainLayout>
-                } />
+                    {/* Protected Routes Simulation */}
+                    <Route path="/treasurer/*" element={
+                        <MainLayout role="treasurer">
+                            <Routes>
+                                <Route index element={<TreasurerDashboard />} />
+                            </Routes>
+                        </MainLayout>
+                    } />
 
-                <Route path="/manager/*" element={
-                    <MainLayout role="manager">
-                        <Routes>
-                            <Route index element={<ManagerDashboard />} />
-                        </Routes>
-                    </MainLayout>
-                } />
+                    <Route path="/manager/*" element={
+                        <MainLayout role="manager">
+                            <Routes>
+                                <Route index element={<ManagerDashboard />} />
+                            </Routes>
+                        </MainLayout>
+                    } />
 
-                <Route path="/admin/*" element={
-                    <MainLayout role="admin">
-                        <Routes>
-                            <Route index element={<AdminDashboard />} />
-                            <Route path="policies" element={<PolicyEngine />} />
-                            <Route path="managers" element={<AuditManagers />} />
-                        </Routes>
-                    </MainLayout>
-                } />
+                    <Route path="/admin/*" element={
+                        <MainLayout role="admin">
+                            <Routes>
+                                <Route index element={<AdminDashboard />} />
+                                <Route path="policies" element={<PolicyEngine />} />
+                                <Route path="managers" element={<AuditManagers />} />
+                            </Routes>
+                        </MainLayout>
+                    } />
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        </Router>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </Router>
+        </SecurityProvider>
     );
 }
 

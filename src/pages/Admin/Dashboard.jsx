@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Settings, ShieldCheck, Users, Database, Save, RefreshCcw, AlertTriangle, Lock, Sliders, Bell, Eye, Mail } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Settings, ShieldCheck, Users, Database, Save, RefreshCcw, AlertTriangle, Lock, Sliders, Bell, Eye, Mail, CheckCircle, XCircle, Clock, X, Inbox } from 'lucide-react';
 import { DEFAULT_POLICIES, INCIDENTS, ACTIVITY_LOGS, getRiskAction } from '../../simulation/mockData';
+import { useSecurityContext } from '../../context/SecurityContext';
 
 export default function AdminDashboard() {
     const [policies, setPolicies] = useState({ ...DEFAULT_POLICIES });
+    const [showMailbox, setShowMailbox] = useState(false);
+    const { pendingReviews, approveReview, blockReview } = useSecurityContext();
 
     const updatePolicy = (key, value) => setPolicies(prev => ({ ...prev, [key]: value }));
+
+    const pendingCount = pendingReviews.filter(r => r.status === 'Pending Review').length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }} className="animate-fade-in-up">
@@ -17,11 +22,106 @@ export default function AdminDashboard() {
                     <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Global Policies, Sector Limits & Manager Oversight</p>
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn-secondary" style={{ fontSize: 12 }}><Mail size={14} /> Mailbox</button>
+                    <button onClick={() => setShowMailbox(!showMailbox)} className="btn-secondary" style={{ fontSize: 12, position: 'relative' }}>
+                        <Mail size={14} /> Mailbox
+                        {pendingCount > 0 && (
+                            <span style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 99, background: '#ef4444', color: 'white', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse 2s infinite' }}>
+                                {pendingCount}
+                            </span>
+                        )}
+                    </button>
                     <button className="btn-secondary" style={{ fontSize: 12 }}><RefreshCcw size={14} /> Reset Defaults</button>
                     <button className="btn-primary" style={{ fontSize: 12 }}><Save size={14} /> Push to Edge</button>
                 </div>
             </div>
+
+            {/* Mailbox Overlay Panel */}
+            <AnimatePresence>
+                {showMailbox && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div className="glass-panel" style={{ padding: 24, border: '1px solid rgba(14,165,233,0.15)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                <h3 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <Inbox size={18} color="#0ea5e9" /> Security Review Mailbox
+                                </h3>
+                                <button onClick={() => setShowMailbox(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            {pendingReviews.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: 40 }}>
+                                    <Mail size={32} color="#1e293b" style={{ margin: '0 auto 12px' }} />
+                                    <p style={{ color: '#475569', fontSize: 13 }}>No pending security reviews</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {pendingReviews.map(review => {
+                                        const isPending = review.status === 'Pending Review';
+                                        const isApproved = review.status === 'Approved';
+                                        const isBlocked = review.status === 'Blocked';
+                                        return (
+                                            <div key={review.id} style={{
+                                                padding: 20,
+                                                background: isPending ? 'rgba(245,158,11,0.04)' : isApproved ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.04)',
+                                                border: `1px solid ${isPending ? 'rgba(245,158,11,0.12)' : isApproved ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'}`,
+                                                borderRadius: 12,
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                                    <div>
+                                                        <p style={{ fontSize: 14, fontWeight: 700 }}>{review.userName}</p>
+                                                        <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{review.actionLabel}</p>
+                                                    </div>
+                                                    <span style={{
+                                                        fontSize: 9, fontWeight: 700, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase',
+                                                        background: isPending ? 'rgba(245,158,11,0.15)' : isApproved ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                                                        color: isPending ? '#f59e0b' : isApproved ? '#10b981' : '#ef4444',
+                                                    }}>
+                                                        {review.status}
+                                                    </span>
+                                                </div>
+
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                                                    <div>
+                                                        <p style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>System Accessed</p>
+                                                        <p style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>{review.system}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Timestamp</p>
+                                                        <p style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>{review.timestamp}</p>
+                                                    </div>
+                                                </div>
+
+                                                {isPending && (
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        <button
+                                                            onClick={() => approveReview(review.id)}
+                                                            style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: 'rgba(16,185,129,0.15)', color: '#10b981', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                        >
+                                                            <CheckCircle size={14} /> Approve Action
+                                                        </button>
+                                                        <button
+                                                            onClick={() => blockReview(review.id)}
+                                                            style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                        >
+                                                            <XCircle size={14} /> Block Action
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
                 {/* Left: Policy Engine */}
@@ -202,6 +302,8 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
+
+            <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
         </div>
     );
 }
