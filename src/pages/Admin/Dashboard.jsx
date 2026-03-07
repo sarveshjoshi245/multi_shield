@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, ShieldCheck, Users, Database, Save, RefreshCcw, AlertTriangle, Lock, Sliders, Bell, Eye } from 'lucide-react';
+import { Settings, ShieldCheck, Users, Database, Save, RefreshCcw, AlertTriangle, Lock, Sliders, Bell, Eye, Mail } from 'lucide-react';
 import { DEFAULT_POLICIES, INCIDENTS, ACTIVITY_LOGS, getRiskAction } from '../../simulation/mockData';
 
 export default function AdminDashboard() {
@@ -17,6 +17,7 @@ export default function AdminDashboard() {
                     <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Global Policies, Sector Limits & Manager Oversight</p>
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
+                    <button className="btn-secondary" style={{ fontSize: 12 }}><Mail size={14} /> Mailbox</button>
                     <button className="btn-secondary" style={{ fontSize: 12 }}><RefreshCcw size={14} /> Reset Defaults</button>
                     <button className="btn-primary" style={{ fontSize: 12 }}><Save size={14} /> Push to Edge</button>
                 </div>

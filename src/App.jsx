@@ -6,6 +6,8 @@ import LoginPage from './pages/Auth/LoginPage';
 import TreasurerDashboard from './pages/Treasurer/Dashboard';
 import ManagerDashboard from './pages/Manager/Dashboard';
 import AdminDashboard from './pages/Admin/Dashboard';
+import PolicyEngine from './pages/Admin/PolicyEngine';
+import AuditManagers from './pages/Admin/AuditManagers';
 
 function App() {
     return (
@@ -35,6 +37,8 @@ function App() {
                     <MainLayout role="admin">
                         <Routes>
                             <Route index element={<AdminDashboard />} />
+                            <Route path="policies" element={<PolicyEngine />} />
+                            <Route path="managers" element={<AuditManagers />} />
                         </Routes>
                     </MainLayout>
                 } />
