@@ -275,7 +275,7 @@ export const PENDING_LOANS = [
 export const ZTA_STEPS = [
     { id: 1, label: 'Password & Employee ID', icon: 'Lock', description: 'Corporate credentials', simValue: 'EM-204 / ••••••••' },
     { id: 2, label: 'OTP Verification', icon: 'Smartphone', description: '6-digit code sent to registered device', simValue: '927418' },
-    { id: 3, label: 'Biometric Scan', icon: 'Fingerprint', description: 'Fingerprint or facial recognition', simValue: 'Fingerprint matched' },
+    { id: 3, label: 'Face Recognition', icon: 'Camera', description: 'Webcam-based face verification', simValue: 'Face matched via webcam' },
     { id: 4, label: 'Security Question', icon: 'HelpCircle', description: 'Personal verification', simValue: 'What city were you born in?' },
     { id: 5, label: 'Manager Auth Code', icon: 'UserCheck', description: 'Real-time manager approval', simValue: 'MGR-CODE-8847' },
     { id: 6, label: 'Hardware Token', icon: 'Key', description: 'YubiKey or RSA SecurID', simValue: 'TOKEN-4488-XR' },

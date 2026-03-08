@@ -1,0 +1,13 @@
+{
+  "message": "\u001b[31msrc/pages/Auth/LoginPage.jsx (5:27): \"checkZTAContext\" is not exported by \"src/simulation/mockData.js\", imported by \"src/pages/Auth/LoginPage.jsx\".\u001b[39m\nfile: \u001b[36mD:/Hackathons/multi_shield/src/pages/Auth/LoginPage.jsx:5:27\u001b[39m\n\u001b[33m\n3: import { Shield, Lock, Smartphone, Camera, HelpCircle, UserCheck, Key, ArrowRight, CheckCircle, Loader } from 'lucide...\n4: import { useNavigate } from 'react-router-dom';\n5: import { USERS, ZTA_STEPS, checkZTAContext } from '../../simulation/mockData';\n                              ^\n6: import FaceRecognition from '../../components/FaceRecognition';\n7: import { useTheme } from '../../context/ThemeContext';\n\u001b[39m",
+  "frame": "3: import { Shield, Lock, Smartphone, Camera, HelpCircle, UserCheck, Key, ArrowRight, CheckCircle, Loader } from 'lucide...\n4: import { useNavigate } from 'react-router-dom';\n5: import { USERS, ZTA_STEPS, checkZTAContext } from '../../simulation/mockData';\n                              ^\n6: import FaceRecognition from '../../components/FaceRecognition';\n7: import { useTheme } from '../../context/ThemeContext';",
+  "loc": {
+    "column": 27,
+    "file": "D:/Hackathons/multi_shield/src/pages/Auth/LoginPage.jsx",
+    "line": 5
+  },
+  "id": "D:/Hackathons/multi_shield/src/pages/Auth/LoginPage.jsx",
+  "code": "MISSING_EXPORT",
+  "plugin": "",
+  "stack": "\u001b[31msrc/pages/Auth/LoginPage.jsx (5:27): \"checkZTAContext\" is not exported by \"src/simulation/mockData.js\", imported by \"src/pages/Auth/LoginPage.jsx\".\u001b[39m\nfile: \u001b[36mD:/Hackathons/multi_shield/src/pages/Auth/LoginPage.jsx:5:27\u001b[39m\n\u001b[33m\n3: import { Shield, Lock, Smartphone, Camera, HelpCircle, UserCheck, Key, ArrowRight, CheckCircle, Loader } from 'lucide...\n4: import { useNavigate } from 'react-router-dom';\n5: import { USERS, ZTA_STEPS, checkZTAContext } from '../../simulation/mockData';\n  "
+}

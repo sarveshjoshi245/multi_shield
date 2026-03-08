@@ -1,316 +1,251 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Lock, MapPin, Monitor, Wifi, Phone, ArrowRight, CheckCircle2, AlertTriangle, Clock, Fingerprint, HelpCircle, UserCheck, Key, X, ShieldOff } from 'lucide-react';
+import { Shield, Lock, Smartphone, Camera, HelpCircle, UserCheck, Key, ArrowRight, CheckCircle, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { USERS, CURRENT_SESSION, evaluateZTAContext, ZTA_STEPS } from '../../simulation/mockData';
+import { USERS, ZTA_STEPS, evaluateZTAContext } from '../../simulation/mockData';
+import FaceRecognition from '../../components/FaceRecognition';
+import { useTheme } from '../../context/ThemeContext';
+
+const STEP_ICONS = { Lock, Smartphone, Camera, HelpCircle, UserCheck, Key };
 
 export default function LoginPage() {
-    const [phase, setPhase] = useState('normal'); // 'normal' | 'zta' | 'blocked'
-    const [normalStep, setNormalStep] = useState(1); // 1=password, 2=otp, 3=done
-    const [ztaStep, setZtaStep] = useState(0);
-    const [role, setRole] = useState('treasurer');
-    const [loading, setLoading] = useState(false);
-    const [blockTimer, setBlockTimer] = useState(0);
-    const [contextChecked, setContextChecked] = useState(false);
-    const [ztaFailed, setZtaFailed] = useState(false);
     const navigate = useNavigate();
+    const { isDark } = useTheme();
+    const [phase, setPhase] = useState('credentials');
+    const [empId, setEmpId] = useState('');
+    const [password, setPassword] = useState('');
+    const [otp, setOtp] = useState('');
+    const [selectedRole, setSelectedRole] = useState(null);
+    const [ztaStep, setZtaStep] = useState(0);
+    const [ztaProgress, setZtaProgress] = useState([]);
+    const [ztaLoading, setZtaLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const user = USERS[role];
-    const ztaResult = evaluateZTAContext(user);
+    const roles = [
+        { key: 'treasurer', label: 'Treasury Officer', color: '#0ea5e9', path: '/treasurer' },
+        { key: 'manager', label: 'EWS Manager', color: '#818cf8', path: '/manager' },
+        { key: 'admin', label: 'System Admin', color: '#f43f5e', path: '/admin' },
+    ];
 
-    // Block timer countdown
-    useEffect(() => {
-        if (blockTimer > 0) {
-            const t = setTimeout(() => setBlockTimer(blockTimer - 1), 1000);
-            return () => clearTimeout(t);
-        }
-    }, [blockTimer]);
-
-    const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
-
-    // Normal Step 1: Password
-    const handlePasswordSubmit = (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
-            setNormalStep(2);
-        }, 1000);
+    const handleCredentialLogin = () => {
+        const role = roles.find(r => r.key === selectedRole);
+        if (!role) { setError('Select a role'); return; }
+        setError('');
+        setPhase('otp');
     };
 
-    // Normal Step 2: OTP → then context check
     const handleOTPSubmit = () => {
-        setLoading(true);
+        if (otp.length < 4) { setError('Enter valid OTP'); return; }
+        setError('');
+
+        const ztaResult = evaluateZTAContext(USERS[selectedRole]);
+        if (ztaResult.requiresMFA) {
+            setPhase('zta');
+            setZtaStep(0);
+            setZtaProgress([]);
+        } else {
+            const role = roles.find(r => r.key === selectedRole);
+            navigate(role.path);
+        }
+    };
+
+    const handleZtaStepComplete = (stepIndex) => {
+        setZtaProgress(prev => [...prev, stepIndex]);
+        if (stepIndex < ZTA_STEPS.length - 1) {
+            setTimeout(() => setZtaStep(stepIndex + 1), 300);
+        } else {
+            setTimeout(() => {
+                const role = roles.find(r => r.key === selectedRole);
+                navigate(role.path);
+            }, 800);
+        }
+    };
+
+    const simulateStepVerify = (stepIndex) => {
+        if (stepIndex === 2) return; // Face recognition handled separately
+        setZtaLoading(true);
         setTimeout(() => {
-            setLoading(false);
-            setContextChecked(true);
-            if (ztaResult.requiresMFA) {
-                // Anomaly detected → activate ZTA engine
-                setPhase('zta');
-                setZtaStep(1);
-            } else {
-                // All good → grant access
-                setNormalStep(3);
-                setTimeout(() => navigate(`/${role}`), 1500);
-            }
+            setZtaLoading(false);
+            handleZtaStepComplete(stepIndex);
         }, 1200);
     };
 
-    // ZTA step verification
-    const handleZTAStepVerify = () => {
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
-            if (ztaStep < 6) {
-                setZtaStep(ztaStep + 1);
-            } else {
-                // All 6 passed → grant access
-                setPhase('normal');
-                setNormalStep(3);
-                setTimeout(() => navigate(`/${role}`), 1500);
-            }
-        }, 1200);
-    };
-
-    // ZTA step failure
-    const handleZTAFail = () => {
-        setZtaFailed(true);
-        setPhase('blocked');
-        setBlockTimer(30 * 60); // 30 min in seconds
-    };
-
-    const anim = { initial: { opacity: 0, x: -20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 20 }, transition: { duration: 0.35 } };
-
-    const ztaIcons = { Lock, Smartphone: Phone, Fingerprint, HelpCircle, UserCheck, Key };
+    const currentStep = ZTA_STEPS[ztaStep];
+    const StepIcon = currentStep ? STEP_ICONS[currentStep.icon] : Lock;
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: '15%', right: '5%', width: '30%', height: '30%', background: 'rgba(14,165,233,0.06)', filter: 'blur(100px)', borderRadius: '50%' }} />
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            background: isDark
+                ? 'radial-gradient(ellipse at top, #0c4a6e 0%, #020617 50%)'
+                : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 30%, #f8fafc 100%)',
+        }}>
+            <div style={{ maxWidth: 960, width: '100%', display: 'grid', gridTemplateColumns: phase === 'zta' ? '300px 1fr' : '1fr', gap: 24 }}>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ width: '100%', maxWidth: phase === 'zta' ? 560 : 440, padding: 40, transition: 'max-width 0.4s ease' }}>
-
-                {/* === BLOCKED STATE === */}
-                {phase === 'blocked' && (
-                    <motion.div {...anim} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '20px 0' }}>
-                        <div style={{ width: 80, height: 80, borderRadius: 20, background: 'rgba(239,68,68,0.15)', border: '2px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ShieldOff size={40} color="#ef4444" />
-                        </div>
-                        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>Access Blocked</h2>
-                        <p style={{ color: '#94a3b8', fontSize: 13, maxWidth: 320, lineHeight: 1.7 }}>
-                            ZTA verification failed at Step {ztaStep}. Your access has been suspended for 30 minutes. An alert has been sent to the System Admin.
-                        </p>
-                        <div style={{ fontSize: 48, fontFamily: 'monospace', fontWeight: 700, color: '#ef4444', padding: '16px 32px', background: 'rgba(239,68,68,0.08)', borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)' }}>
-                            {formatTime(blockTimer)}
-                        </div>
-                        <div style={{ padding: 16, background: 'rgba(239,68,68,0.06)', borderRadius: 12, border: '1px solid rgba(239,68,68,0.12)', width: '100%' }}>
-                            <p style={{ fontSize: 11, color: '#ef4444', fontWeight: 600 }}>📧 Admin notified: AD-001 (Sunita Rao)</p>
-                            <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>Incident ID: INC-{Date.now().toString().slice(-6)} · Only Admin can restore access before timer expires.</p>
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* === NORMAL LOGIN FLOW === */}
-                {phase === 'normal' && (
-                    <>
-                        {/* Header */}
-                        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                            <div style={{ width: 56, height: 56, background: normalStep === 3 ? '#10b981' : '#0284c7', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: `0 8px 24px ${normalStep === 3 ? 'rgba(16,185,129,0.35)' : 'rgba(2,132,199,0.35)'}`, transition: 'all 0.4s' }}>
-                                {normalStep === 3 ? <CheckCircle2 color="white" size={28} /> : <Lock color="white" size={28} />}
-                            </div>
-                            <h1 style={{ fontSize: 26, fontWeight: 700 }}>{normalStep === 3 ? 'Access Granted' : 'Secure Login'}</h1>
-                            <p style={{ color: '#64748b', fontSize: 12, marginTop: 6 }}>{normalStep === 3 ? `Redirecting to ${user.sector} workspace...` : 'Standard authentication'}</p>
-                        </div>
-
-                        {/* Progress */}
-                        {normalStep < 3 && (
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
-                                {['Password', 'OTP'].map((s, i) => (
-                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <div style={{ width: 28, height: 28, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, background: normalStep > i + 1 ? '#10b981' : normalStep === i + 1 ? '#0284c7' : 'rgba(255,255,255,0.05)', color: normalStep >= i + 1 ? 'white' : '#64748b', transition: 'all 0.3s' }}>
-                                            {normalStep > i + 1 ? '✓' : i + 1}
-                                        </div>
-                                        {i < 1 && <div style={{ width: 24, height: 1, background: normalStep > i + 1 ? '#10b981' : 'rgba(255,255,255,0.1)' }} />}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <AnimatePresence mode="wait">
-                            {/* Step 1: Role + Password */}
-                            {normalStep === 1 && (
-                                <motion.form key="n1" {...anim} onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                    <div>
-                                        <label style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6, display: 'block' }}>Select Role</label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                            {Object.entries(USERS).map(([key, u]) => (
-                                                <button type="button" key={key} onClick={() => setRole(key)}
-                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, border: `1px solid ${role === key ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.08)'}`, background: role === key ? 'rgba(14,165,233,0.1)' : 'rgba(255,255,255,0.03)', color: role === key ? 'white' : '#94a3b8', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left' }}>
-                                                    <div>
-                                                        <div style={{ fontSize: 13, fontWeight: 600 }}>{u.name}</div>
-                                                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{u.role} · {u.sector}</div>
-                                                    </div>
-                                                    {role === key && <CheckCircle2 size={16} color="#38bdf8" />}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <input className="input-field" placeholder="Employee ID" defaultValue={user.id} />
-                                    <input className="input-field" type="password" placeholder="Password" defaultValue="••••••••" />
-                                    <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px 0', fontSize: 14, marginTop: 4 }} disabled={loading}>
-                                        {loading ? 'Verifying...' : 'Continue'} {!loading && <ArrowRight size={15} />}
-                                    </button>
-                                </motion.form>
-                            )}
-
-                            {/* Step 2: OTP */}
-                            {normalStep === 2 && (
-                                <motion.div key="n2" {...anim} style={{ display: 'flex', flexDirection: 'column', gap: 20, textAlign: 'center' }}>
-                                    <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(14,165,233,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                                        <Phone size={24} color="#38bdf8" />
-                                    </div>
-                                    <div>
-                                        <h3 style={{ fontSize: 17, fontWeight: 700 }}>OTP Verification</h3>
-                                        <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>A 6-digit code has been sent to {user.device}</p>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                                        {[9, 2, 7, 4, 1, 8].map((d, i) => (
-                                            <div key={i} style={{ width: 40, height: 48, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: 'white' }}>{d}</div>
-                                        ))}
-                                    </div>
-                                    <button onClick={handleOTPSubmit} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px 0', fontSize: 14 }} disabled={loading}>
-                                        {loading ? 'Verifying OTP & Context...' : 'Verify OTP'} {!loading && <ArrowRight size={15} />}
-                                    </button>
-                                </motion.div>
-                            )}
-
-                            {/* Step 3: Access Granted */}
-                            {normalStep === 3 && (
-                                <motion.div key="n3" {...anim} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '20px 0' }}>
-                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 15 }} style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(16,185,129,0.15)', border: '2px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <CheckCircle2 size={36} color="#10b981" />
-                                    </motion.div>
-                                    <p style={{ color: '#64748b', fontSize: 13 }}>Sector-restricted token issued.</p>
-                                    <div style={{ width: 28, height: 28, border: '3px solid #0284c7', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </>
-                )}
-
-                {/* === ZTA 6-STEP ENGINE === */}
+                {/* ZTA Sidebar */}
                 {phase === 'zta' && (
-                    <motion.div {...anim} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        {/* ZTA Header */}
-                        <div style={{ padding: 16, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 12, display: 'flex', gap: 12 }}>
-                            <AlertTriangle size={24} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
-                            <div>
-                                <p style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>⚡ Zero Trust Engine Activated</p>
-                                <p style={{ fontSize: 11, color: 'rgba(239,68,68,0.7)', lineHeight: 1.6, marginTop: 4 }}>
-                                    Anomalous context detected (Risk +{ztaResult.riskDelta}). Complete all 6 verification steps. Failure at any step → 30 min lockout + admin alert.
-                                </p>
-                            </div>
+                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="glass-panel" style={{ padding: 28, alignSelf: 'start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+                            <Shield size={20} color="#0284c7" />
+                            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>ZTA Verification</h3>
                         </div>
-
-                        {/* Context checks summary */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            {ztaResult.checks.map((c, i) => (
-                                <div key={i} style={{ padding: '8px 12px', borderRadius: 8, background: c.passed ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', border: `1px solid ${c.passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}`, display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                    <span style={{ color: '#94a3b8' }}>{c.label}</span>
-                                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: c.passed ? '#10b981' : '#ef4444' }}>{c.passed ? '✓' : '✗'}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ZTA Steps Progress */}
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                            {ZTA_STEPS.map((s, i) => (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, background: ztaStep > s.id ? '#10b981' : ztaStep === s.id ? '#0284c7' : 'rgba(255,255,255,0.05)', color: ztaStep >= s.id ? 'white' : '#475569', transition: 'all 0.3s' }}>
-                                        {ztaStep > s.id ? '✓' : s.id}
-                                    </div>
-                                    {i < 5 && <div style={{ width: 12, height: 1, background: ztaStep > s.id ? '#10b981' : 'rgba(255,255,255,0.08)' }} />}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Current ZTA Step */}
-                        {ztaStep >= 1 && ztaStep <= 6 && (
-                            <div style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(14,165,233,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        {ztaStep === 1 && <Lock size={22} color="#38bdf8" />}
-                                        {ztaStep === 2 && <Phone size={22} color="#38bdf8" />}
-                                        {ztaStep === 3 && <Fingerprint size={22} color="#38bdf8" />}
-                                        {ztaStep === 4 && <HelpCircle size={22} color="#38bdf8" />}
-                                        {ztaStep === 5 && <UserCheck size={22} color="#38bdf8" />}
-                                        {ztaStep === 6 && <Key size={22} color="#38bdf8" />}
-                                    </div>
-                                    <div>
-                                        <h3 style={{ fontSize: 16, fontWeight: 700 }}>Step {ztaStep}: {ZTA_STEPS[ztaStep - 1]?.label}</h3>
-                                        <p style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{ZTA_STEPS[ztaStep - 1]?.description}</p>
-                                    </div>
-                                </div>
-
-                                {/* Simulated input for each step */}
-                                {ztaStep === 1 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        <input className="input-field" placeholder="Employee ID" defaultValue={user.id} />
-                                        <input className="input-field" type="password" placeholder="Password" defaultValue="••••••••" />
-                                    </div>
-                                )}
-                                {ztaStep === 2 && (
-                                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                                        {[9, 2, 7, 4, 1, 8].map((d, i) => (
-                                            <div key={i} style={{ width: 40, height: 48, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: 'white' }}>{d}</div>
-                                        ))}
-                                    </div>
-                                )}
-                                {ztaStep === 3 && (
-                                    <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                                        <div className="animate-pulse-glow" style={{ width: 80, height: 80, borderRadius: 99, background: 'rgba(14,165,233,0.1)', border: '2px solid rgba(14,165,233,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                                            <Fingerprint size={36} color="#38bdf8" />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {ZTA_STEPS.map((step, i) => {
+                                const completed = ztaProgress.includes(i);
+                                const active = ztaStep === i;
+                                const Icon = STEP_ICONS[step.icon] || Lock;
+                                return (
+                                    <div key={i} style={{
+                                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                                        borderRadius: 10,
+                                        background: active ? 'var(--risk-blue-bg)' : 'transparent',
+                                        border: active ? '1px solid var(--border-active)' : '1px solid transparent',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                        <div style={{
+                                            width: 28, height: 28, borderRadius: 99,
+                                            background: completed ? 'rgba(16,185,129,0.15)' : active ? 'rgba(14,165,233,0.15)' : 'var(--bg-card-subtle)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                            border: `1px solid ${completed ? 'rgba(16,185,129,0.3)' : active ? 'rgba(14,165,233,0.3)' : 'var(--border-subtle)'}`,
+                                        }}>
+                                            {completed ? <CheckCircle size={14} color="#10b981" /> : <Icon size={14} color={active ? '#0ea5e9' : 'var(--text-faint)'} />}
                                         </div>
-                                        <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 12 }}>Place your finger on the sensor...</p>
-                                    </div>
-                                )}
-                                {ztaStep === 4 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        <p style={{ fontSize: 12, color: '#94a3b8' }}>What city were you born in?</p>
-                                        <input className="input-field" type="text" placeholder="Your answer" defaultValue="Mumbai" />
-                                    </div>
-                                )}
-                                {ztaStep === 5 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        <p style={{ fontSize: 12, color: '#94a3b8' }}>Enter the authorization code from your reporting manager:</p>
-                                        <input className="input-field" placeholder="MGR-CODE-XXXX" defaultValue="MGR-CODE-8847" style={{ fontFamily: 'monospace', letterSpacing: 2 }} />
-                                    </div>
-                                )}
-                                {ztaStep === 6 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'center' }}>
-                                        <p style={{ fontSize: 12, color: '#94a3b8' }}>Insert your hardware security token:</p>
-                                        <div style={{ padding: '12px 20px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', fontFamily: 'monospace', fontSize: 18, letterSpacing: 4, fontWeight: 700, color: '#10b981' }}>
-                                            TOKEN-4488-XR
+                                        <div>
+                                            <p style={{ fontSize: 11, fontWeight: active || completed ? 700 : 500, color: completed ? '#10b981' : active ? '#0ea5e9' : 'var(--text-muted)' }}>{step.label}</p>
                                         </div>
                                     </div>
-                                )}
+                                );
+                            })}
+                        </div>
+                        <div style={{ marginTop: 20, padding: 12, background: 'var(--bg-card-subtle)', borderRadius: 8 }}>
+                            <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Progress</p>
+                            <div style={{ marginTop: 6, height: 4, borderRadius: 99, background: 'var(--border-primary)', overflow: 'hidden' }}>
+                                <motion.div animate={{ width: `${(ztaProgress.length / ZTA_STEPS.length) * 100}%` }} style={{ height: '100%', background: 'linear-gradient(90deg, #0ea5e9, #10b981)', borderRadius: 99 }} />
                             </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button onClick={handleZTAFail} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                <X size={14} /> Fail Step (Demo)
-                            </button>
-                            <button onClick={handleZTAStepVerify} className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '12px 0', fontSize: 13 }} disabled={loading}>
-                                {loading ? 'Verifying...' : ztaStep === 6 ? 'Complete & Enter System' : `Verify Step ${ztaStep}`} {!loading && <ArrowRight size={14} />}
-                            </button>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#0ea5e9', marginTop: 6 }}>{ztaProgress.length}/{ZTA_STEPS.length} verified</p>
                         </div>
                     </motion.div>
                 )}
 
-                <p style={{ textAlign: 'center', fontSize: 8, color: '#334155', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginTop: 28 }}>
-                    Protected by Zero Trust AI Architecture
-                </p>
-            </motion.div>
+                {/* Main Card */}
+                <div className="glass-panel" style={{ padding: 40, position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #0284c7, #6366f1, #f43f5e)' }} />
+
+                    <AnimatePresence mode="wait">
+                        {/* CREDENTIALS */}
+                        {phase === 'credentials' && (
+                            <motion.div key="cred" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <div style={{ textAlign: 'center', marginBottom: 36 }}>
+                                    <div style={{ width: 56, height: 56, margin: '0 auto 16px', background: '#0284c7', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Shield color="white" size={28} />
+                                    </div>
+                                    <h1 style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Outfit', color: 'var(--text-primary)' }}>Multi<span style={{ color: '#0ea5e9' }}>Shield</span></h1>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 8 }}>Zero Trust Banking Security Platform</p>
+                                </div>
+
+                                {/* Role Selection */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }}>Select Access Level</label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                                        {roles.map(role => (
+                                            <button key={role.key} onClick={() => setSelectedRole(role.key)}
+                                                style={{
+                                                    padding: 16, borderRadius: 12, textAlign: 'center', cursor: 'pointer',
+                                                    border: `1.5px solid ${selectedRole === role.key ? role.color : 'var(--border-primary)'}`,
+                                                    background: selectedRole === role.key ? `${role.color}10` : 'var(--bg-card)',
+                                                    color: selectedRole === role.key ? role.color : 'var(--text-muted)',
+                                                    transition: 'all 0.2s', fontWeight: selectedRole === role.key ? 700 : 500,
+                                                    fontSize: 12,
+                                                }}>
+                                                {role.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+                                    <div>
+                                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Employee ID</label>
+                                        <input className="input-field" placeholder="EM-XXX" value={empId} onChange={e => setEmpId(e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Password</label>
+                                        <input className="input-field" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                                    </div>
+                                </div>
+
+                                {error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 12, textAlign: 'center' }}>{error}</p>}
+
+                                <button onClick={handleCredentialLogin} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }}>
+                                    Authenticate <ArrowRight size={16} />
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* OTP */}
+                        {phase === 'otp' && (
+                            <motion.div key="otp" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                                    <div style={{ width: 56, height: 56, margin: '0 auto 16px', background: 'var(--risk-blue-bg)', border: '2px solid var(--border-active)', borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Smartphone size={24} color="#0ea5e9" />
+                                    </div>
+                                    <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>OTP Verification</h2>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>Enter the 6-digit code sent to your device</p>
+                                </div>
+
+                                <input className="input-field" value={otp} onChange={e => setOtp(e.target.value)} placeholder="• • • • • •"
+                                    style={{ textAlign: 'center', fontSize: 24, fontFamily: 'monospace', letterSpacing: 12, marginBottom: 20, fontWeight: 700 }} maxLength={6} />
+
+                                {error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 12, textAlign: 'center' }}>{error}</p>}
+
+                                <button onClick={handleOTPSubmit} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }}>
+                                    Verify Code <ArrowRight size={16} />
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* ZTA Steps */}
+                        {phase === 'zta' && currentStep && (
+                            <motion.div key={`zta-${ztaStep}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                                    <div style={{ width: 56, height: 56, margin: '0 auto 16px', background: 'var(--risk-blue-bg)', border: '2px solid var(--border-active)', borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <StepIcon size={24} color="#0ea5e9" />
+                                    </div>
+                                    <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Step {ztaStep + 1}: {currentStep.label}</h2>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>{currentStep.description}</p>
+                                </div>
+
+                                {/* Face Recognition step */}
+                                {ztaStep === 2 ? (
+                                    <FaceRecognition onSuccess={() => handleZtaStepComplete(2)} />
+                                ) : (
+                                    <>
+                                        <div style={{
+                                            padding: 16, background: 'var(--bg-card-subtle)', borderRadius: 12,
+                                            border: '1px solid var(--border-subtle)', marginBottom: 24, textAlign: 'center'
+                                        }}>
+                                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Simulated Value</p>
+                                            <p style={{ fontSize: 16, fontFamily: 'monospace', fontWeight: 700, marginTop: 6, color: 'var(--text-primary)' }}>{currentStep.simValue}</p>
+                                        </div>
+
+                                        <button onClick={() => simulateStepVerify(ztaStep)} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }} disabled={ztaLoading}>
+                                            {ztaLoading ? (
+                                                <><Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
+                                            ) : (
+                                                <>Verify <ArrowRight size={16} /></>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>

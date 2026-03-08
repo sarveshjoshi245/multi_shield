@@ -1,0 +1,128 @@
+[36mvite v6.4.1 [32mbuilding for production...[36m[39m
+transforming...
+[32m???[39m 2634 modules transformed.
+cmd.exe : 
+[31m???[39m Build 
+failed in 2.17s
+At line:1 char:48
++ ... erence = 
+'Continue'; $output = 
+& cmd /c "npx vite 
+build" 2>&1; $outpu 
+...
++                     
+               ~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: ([31m???[   
+ 39m Build failed     
+in 2.17s:String)     
+[], RemoteExcepti    
+on
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+[31merror during 
+build:
+[31msrc/pages/Auth/Lo
+ginPage.jsx (5:27): 
+"checkZTAContext" is 
+not exported by "src/s
+imulation/mockData.js"
+, imported by "src/pag
+es/Auth/LoginPage.jsx"
+.[31m
+file: [36mD:/Hackatho
+ns/multi_shield/src/pa
+ges/Auth/LoginPage.jsx
+:5:27[31m
+[33m
+3: import { Shield, 
+Lock, Smartphone, 
+Camera, HelpCircle, 
+UserCheck, Key, 
+ArrowRight, 
+CheckCircle, Loader } 
+from 'lucide...
+4: import { 
+useNavigate } from 
+'react-router-dom';
+5: import { USERS, 
+ZTA_STEPS, 
+checkZTAContext } 
+from '../../simulation
+/mockData';
+                      
+        ^
+6: import 
+FaceRecognition from '
+../../components/FaceR
+ecognition';
+7: import { useTheme 
+} from '../../context/
+ThemeContext';
+[31m
+    at getRollupError 
+(file:///D:/Hackathons
+/multi_shield/node_mod
+ules/rollup/dist/es/sh
+ared/parseAst.js:402:4
+1)
+    at error (file:///
+D:/Hackathons/multi_sh
+ield/node_modules/roll
+up/dist/es/shared/pars
+eAst.js:398:42)
+    at Module.error (f
+ile:///D:/Hackathons/m
+ulti_shield/node_modul
+es/rollup/dist/es/shar
+ed/node-entry.js:17040
+:16)
+    at 
+Module.traceVariable (
+file:///D:/Hackathons/
+multi_shield/node_modu
+les/rollup/dist/es/sha
+red/node-entry.js:1745
+2:29)
+    at ModuleScope.fin
+dVariable (file:///D:/
+Hackathons/multi_shiel
+d/node_modules/rollup/
+dist/es/shared/node-en
+try.js:15070:39)
+    at FunctionScope.f
+indVariable (file:///D
+:/Hackathons/multi_shi
+eld/node_modules/rollu
+p/dist/es/shared/node-
+entry.js:5673:38)
+    at FunctionBodySco
+pe.findVariable (file:
+///D:/Hackathons/multi
+_shield/node_modules/r
+ollup/dist/es/shared/n
+ode-entry.js:5673:38)
+    at ReturnValueScop
+e.findVariable (file:/
+//D:/Hackathons/multi_
+shield/node_modules/ro
+llup/dist/es/shared/no
+de-entry.js:5673:38)
+    at FunctionBodySco
+pe.findVariable (file:
+///D:/Hackathons/multi
+_shield/node_modules/r
+ollup/dist/es/shared/n
+ode-entry.js:5673:38)
+    at 
+Identifier.bind (file:
+///D:/Hackathons/multi
+_shield/node_modules/r
+ollup/dist/es/shared/n
+ode-entry.js:5447:40)
+[39m
